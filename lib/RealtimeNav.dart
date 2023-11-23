@@ -127,7 +127,7 @@ class _RealtimeNavState extends State<RealtimeNav> {
 
       // Start navigation directions
       if (!_isNightMode && !_showBusStops) {
-        _speakNavigationDirections("Hello");
+        _speakNavigationDirections(_currentInstruction);
       }
     });
     _loadMapStyles();
@@ -241,6 +241,30 @@ class _RealtimeNavState extends State<RealtimeNav> {
     super.dispose();
   }
 
+  Widget _buildInstructionBox() {
+    return Positioned(
+      top: 20.0, // Adjust the positioning as needed
+      left: 10.0,
+      right: 10.0,
+      child: Container(
+        padding: EdgeInsets.all(10.0),
+        decoration: BoxDecoration(
+          color: _isNightMode
+              ? Colors.white.withOpacity(0.85)
+              : Colors.black.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(10.0),
+        ),
+        child: Text(
+          _currentInstruction,
+          style: TextStyle(
+            fontSize: 16.0,
+            color: _isNightMode ? Colors.black : Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -251,7 +275,13 @@ class _RealtimeNavState extends State<RealtimeNav> {
         future: Future.delayed(Duration(milliseconds: 200)),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done) {
-            return _buildMap();
+            return Stack(
+              children: [
+                _buildMap(),
+                _buildInstructionBox(), // Add this line
+                // You can add more overlay widgets here if needed
+              ],
+            );
           } else {
             return Center(child: CircularProgressIndicator());
           }
@@ -288,7 +318,7 @@ class _RealtimeNavState extends State<RealtimeNav> {
                 // Reset the mute state when switching modes
               });
               if (!_isNightMode && !_showBusStops) {
-                _speakNavigationDirections("Hello");
+                _speakNavigationDirections(_currentInstruction);
               } else {
                 flutterTts.stop(); // Stop speech
               }
@@ -319,7 +349,7 @@ class _RealtimeNavState extends State<RealtimeNav> {
                 if (isMuted) {
                   flutterTts.stop();
                 } else {
-                  _speakNavigationDirections("Hello");
+                  _speakNavigationDirections(_currentInstruction);
                 }
               });
             },
@@ -364,8 +394,9 @@ class _RealtimeNavState extends State<RealtimeNav> {
           myLocationButtonEnabled: false,
         ),
         Positioned(
-          top: 20.0,
-          right: 20.0,
+          bottom: 50.0, // Adjust the positioning as needed
+          left: 10.0,
+
           child: Column(
             children: [
               ElevatedButton(
@@ -376,9 +407,7 @@ class _RealtimeNavState extends State<RealtimeNav> {
                   _recenter();
                 },
                 child: Text(
-                  _isSatelliteView
-                      ? 'Switch to Map View'
-                      : 'Switch to Satellite View',
+                  _isSatelliteView ? 'Map View' : 'Satellite View',
                 ),
               ),
               ElevatedButton(
