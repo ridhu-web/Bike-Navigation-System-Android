@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter/services.dart';
+import 'dart:math' show pi, sin, cos, sqrt, asin;
 
 class RealtimeNav extends StatefulWidget {
   final LatLng startLocation;
@@ -24,6 +25,17 @@ class RealtimeNav extends StatefulWidget {
       _RealtimeNavState(locationUpdateController: locationUpdateController);
 }
 
+class NavigationStep {
+  String instruction;
+  LatLng endLocation;
+
+  NavigationStep(this.instruction, this.endLocation);
+}
+
+// Global variables
+List<NavigationStep> globalNavigationSteps = [];
+int currentStepIndex = 0;
+
 class _RealtimeNavState extends State<RealtimeNav> {
   GoogleMapController? _controller;
   final StreamController<LatLng> locationUpdateController;
@@ -32,6 +44,7 @@ class _RealtimeNavState extends State<RealtimeNav> {
   bool _showBusStops = false;
   Set<Polyline> _polylines = {};
   Set<Marker> _busStopMarkers = {};
+  String _currentInstruction = ""; // State variable for current instruction
   bool _isNightMode = false; // for changing modes
   FlutterTts flutterTts = FlutterTts();
   bool isMuted = false;
@@ -91,6 +104,8 @@ class _RealtimeNavState extends State<RealtimeNav> {
             .listen((Position position) {
       _updateCurrentLocationMarker(
           LatLng(position.latitude, position.longitude));
+
+      _checkProximityAndAnnounceDirections(position);
     });
     widget.locationUpdateController.stream.listen((location) async {
       setState(() {
@@ -112,7 +127,7 @@ class _RealtimeNavState extends State<RealtimeNav> {
 
       // Start navigation directions
       if (!_isNightMode && !_showBusStops) {
-        _speakNavigationDirections();
+        _speakNavigationDirections("Hello");
       }
     });
     _loadMapStyles();
@@ -133,6 +148,7 @@ class _RealtimeNavState extends State<RealtimeNav> {
       if (currentMarker != null) {
         _markers.remove(currentMarker);
       }
+
       _markers.add(Marker(
         markerId: MarkerId('currentLocation'),
         position: _currentLocation,
@@ -141,6 +157,82 @@ class _RealtimeNavState extends State<RealtimeNav> {
       ));
     });
   }
+
+  void _checkProximityAndAnnounceDirections(Position currentPosition) {
+    if (currentStepIndex < globalNavigationSteps.length) {
+      double distance = _calculateDistance(
+        currentPosition.latitude,
+        currentPosition.longitude,
+        globalNavigationSteps[currentStepIndex].endLocation.latitude,
+        globalNavigationSteps[currentStepIndex].endLocation.longitude,
+      );
+
+      if (distance <= 30) {
+        // Announce the direction for the next step (if available)
+        if (currentStepIndex < globalNavigationSteps.length - 1) {
+          String nextInstruction =
+              globalNavigationSteps[currentStepIndex + 1].instruction;
+          _speakNavigationDirections(nextInstruction);
+          setState(() {
+            _currentInstruction =
+                nextInstruction; // Update the instruction to be displayed
+          });
+
+          // Increment the index or set a timer to repeat the instruction
+          // Ensure the instruction is not repeated too frequently
+        }
+        currentStepIndex++; // Move to the next step
+      }
+    }
+  }
+
+  double _calculateDistance(
+      double lat1, double lon1, double lat2, double lon2) {
+    const double radiusOfEarth = 6371; // Earth's radius in kilometers
+    double lat1Rad = _degreesToRadians(lat1);
+    double lat2Rad = _degreesToRadians(lat2);
+    double deltaLatRad = _degreesToRadians(lat2 - lat1);
+    double deltaLonRad = _degreesToRadians(lon2 - lon1);
+
+    // Haversine formula
+    double a = sin(deltaLatRad / 2) * sin(deltaLatRad / 2) +
+        cos(lat1Rad) *
+            cos(lat2Rad) *
+            sin(deltaLonRad / 2) *
+            sin(deltaLonRad / 2);
+    double c = 2 * asin(sqrt(a));
+    double distance = radiusOfEarth * c;
+
+    return distance * 1000; // Convert to meters
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * (pi / 180.0);
+  }
+
+  // void _updateCurrentLocationMarker(LatLng newLocation) {
+  //   setState(() {
+  //     _currentLocation = newLocation;
+
+  //     Marker? currentMarker;
+  //     for (var marker in _markers) {
+  //       if (marker.markerId == MarkerId('currentLocation')) {
+  //         currentMarker = marker;
+  //         break; // Stop the loop if we have found our marker
+  //       }
+  //     }
+
+  //     if (currentMarker != null) {
+  //       _markers.remove(currentMarker);
+  //     }
+  //     _markers.add(Marker(
+  //       markerId: MarkerId('currentLocation'),
+  //       position: _currentLocation,
+  //       infoWindow: InfoWindow(title: 'Current Location'),
+  //       icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+  //     ));
+  //   });
+  // }
 
   @override
   void dispose() {
@@ -196,7 +288,7 @@ class _RealtimeNavState extends State<RealtimeNav> {
                 // Reset the mute state when switching modes
               });
               if (!_isNightMode && !_showBusStops) {
-                _speakNavigationDirections();
+                _speakNavigationDirections("Hello");
               } else {
                 flutterTts.stop(); // Stop speech
               }
@@ -227,7 +319,7 @@ class _RealtimeNavState extends State<RealtimeNav> {
                 if (isMuted) {
                   flutterTts.stop();
                 } else {
-                  _speakNavigationDirections();
+                  _speakNavigationDirections("Hello");
                 }
               });
             },
@@ -377,7 +469,7 @@ class _RealtimeNavState extends State<RealtimeNav> {
 
   void _startBikeNavigation() async {
     if (!_isNightMode && !_showBusStops) {
-      _speakNavigationDirections();
+      _speakNavigationDirections("Start navigation");
     }
 
     const apiKey = 'AIzaSyDkKbK_K-0WJuhGvvSbmSL5pEoCiBSWNqY'; //API Key
@@ -403,6 +495,11 @@ class _RealtimeNavState extends State<RealtimeNav> {
           points: points,
         );
 
+        List<dynamic> stepsInstructions = data['routes'][0]['legs'][0]['steps'];
+        globalNavigationSteps = _processSteps(stepsInstructions);
+        print(globalNavigationSteps);
+        currentStepIndex = 0; // Reset the index
+
         LatLngBounds polylineBounds = _getPolylineBounds(points);
 
         _controller!.animateCamera(
@@ -421,6 +518,26 @@ class _RealtimeNavState extends State<RealtimeNav> {
     } else {
       print('Failed to fetch directions. Status code: ${response.statusCode}');
     }
+  }
+
+  String processInstructions(String instruction) {
+    String processedInstruction =
+        instruction.replaceAll('<b>', '').replaceAll('</b>', '');
+    return processedInstruction;
+  }
+
+  List<NavigationStep> _processSteps(List<dynamic> steps) {
+    List<NavigationStep> navigationSteps = [];
+    for (var step in steps) {
+      String instruction = processInstructions(step['html_instructions']);
+      print(instruction);
+      LatLng endLocation = LatLng(
+        step['end_location']['lat'],
+        step['end_location']['lng'],
+      );
+      navigationSteps.add(NavigationStep(instruction, endLocation));
+    }
+    return navigationSteps;
   }
 
   void _getBusStops() async {
@@ -558,10 +675,6 @@ class _RealtimeNavState extends State<RealtimeNav> {
     return radians * (180.0 / pi);
   }
 
-  double _degreesToRadians(double degrees) {
-    return degrees * (pi / 180.0);
-  }
-
   double _calculateTilt(double bearing) {
     const double maxTilt = 70.0;
     return _clamp(bearing.abs(), 0.0, maxTilt);
@@ -579,10 +692,10 @@ class _RealtimeNavState extends State<RealtimeNav> {
     _controller?.animateCamera(CameraUpdate.zoomOut());
   }
 
-  void _speakNavigationDirections() async {
+  void _speakNavigationDirections(String message) async {
     //for text to speech
     if (!isMuted) {
-      await flutterTts.speak("Start Navigation");
+      await flutterTts.speak(message);
     }
   }
 }

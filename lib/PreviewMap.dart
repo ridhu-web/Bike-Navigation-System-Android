@@ -44,6 +44,8 @@ class _MapScreenState extends State<PreviewScreen> {
         for (var route in decodedResponse['routes']) {
           List<LatLng> points = [];
 
+          List<Text> instructions = [];
+
           for (var leg in route['legs']) {
             for (var step in leg['steps']) {
               points.add(LatLng(
@@ -54,6 +56,8 @@ class _MapScreenState extends State<PreviewScreen> {
                 step['end_location']['lat'],
                 step['end_location']['lng'],
               ));
+
+              instructions.add(Text(step['html_instructions']));
             }
           }
 

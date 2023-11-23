@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:fsp/NavigationPage.dart';
 import 'package:provider/provider.dart';
@@ -27,9 +26,7 @@ class MyApp extends StatelessWidget {
 }
 
 class MyAppState extends ChangeNotifier {
-  
   void getNext() {
-    
     notifyListeners();
   }
 }
@@ -84,7 +81,8 @@ class MyHomePage extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               image: DecorationImage(
-                image: AssetImage('assets/black-grey-chicago-city-area-background-map-vector-37821140.jpg'),
+                image: AssetImage(
+                    'assets/black-grey-chicago-city-area-background-map-vector-37821140.jpg'),
                 fit: BoxFit.cover,
               ),
             ),
@@ -108,7 +106,8 @@ class MyHomePage extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => NavigationPage()),
+                        MaterialPageRoute(
+                            builder: (context) => NavigationPage()),
                       );
                       print("Hello, you pressed this button");
                     },
